@@ -111,10 +111,35 @@ class PatientDB:
 	def getPatient(self, MRN):
 		return self.patientDB[MRN]
 
+MRNList = [line.split('\t')[0] for line in open("PatientDB.txt").readlines()]
+
+def getMRNList(filename):
+	with open(filename, 'r') as f:
+		lines = f.readlines()
+		MRNList = []
+		for line in lines:
+			MRNList.append(line.split('\t')[0])
+	return MRNList
+
+def queryMRN():
+	MRN = raw_input("Please enter patient MRN: ")
+	if (MRN in MRNList):
+		return MRNList.index(MRN)
+	else:
+		return -1
+
 # Prompt user for import?
 # Prompt user to add patient
 # Prompt user to view patient lists
 def main(): 
-	menu_option = 0
-	while (menu_option != 4):
-		menu_option = raw_input("Select an option: \n [1] Add a patient \n [2] Remove a patient \n [3] View a patient \n [4] Exit \n * 2")
+	# Populate the list of patient MRNs in the database
+	MRNList = [line.split('\t')[0] for line in open("PatientDB.txt").readlines()]
+	indexPatient = queryMRN()
+	while (indexPatient):
+		if (indexPatient > 0):
+			# Show patient info
+			# Ask if user wants to edit patient info or not
+		else:
+			print "This MRN is not in the database. Create a new patient? "
+			newPatient = raw_input("[1] Yes \n [2] No")
+
