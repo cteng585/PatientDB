@@ -1,5 +1,6 @@
 import datetime
 import itertools
+import os
 # TODO
 # Come up with some sort of alert system? Maybe a way to email? HTTP format for patients?
 
@@ -184,11 +185,11 @@ def createPatient(MRN):
 	return newPatient
 
 def displayEligibility(database, MRN):
-	print database.patientDB[MRN].characteristics['basics']['name'], MRN, 'Study Eligibility \n'
+	print "Study Eligibility for", database.patientDB[MRN].characteristics['basics']['name'], "(", MRN, ") \n"
 	for key in database.patientDB[MRN].characteristics.keys():
 		if (key != 'basics'):
 			print database.patientDB[MRN].characteristics[key]['ID'] + ":", database.patientDB[MRN].characteristics[key]['eligible']
-	option = raw_input("View details? Enter a study name or type 'Exit' \n")
+	option = raw_input("\n View details? Enter a study name or type 'Exit' \n")
 	return option
 
 def updateStudyCharacteristics(database, MRN):
@@ -318,39 +319,50 @@ def str2bool(s):
 # Prompt user to add patient
 # Prompt user to view patient lists
 def main(): 
+	os.system('clear')
 	database = PatientDB()
 	searchResult, MRN = queryMRN(database)
+	os.system('clear')
 	while (MRN != 0):
 		if (searchResult):
 			study = displayEligibility(database, MRN)
+			os.system('clear')
 			while (study != 'Exit'):
 				if (study == 'DCM'):
 					edit = 0
 					while (edit != 10):
 						edit = updateDCM(database, MRN)
 						checkDCM(database, MRN)
+						os.system('clear')
 				elif (study == 'AMGEN'):
 					edit = 0
 					while (edit != 27):
 						edit = updateAMGEN(database, MRN)
 						checkAMGEN(database, MRN)
+						os.system('clear')
 				study = displayEligibility(database, MRN)
+				os.system('clear')
 		else:
 			newPatient = createPatient(MRN)
 			database.addPatient(MRN, newPatient)
+			os.system('clear')
 			study = displayEligibility(database, MRN)
+			os.system('clear')
 			while (study != 'Exit'):
 				if (study == 'DCM'):
 					edit = 0
 					while (edit != 10):
 						edit = updateDCM(database, MRN)
 						checkDCM(database, MRN)
+						os.system('clear')
 				elif (study == 'AMGEN'):
 					edit = 0
 					while (edit != 27):
 						edit = updateAMGEN(database, MRN)
 						checkAMGEN(database, MRN)
+						os.system('clear')
 				study = displayEligibility(database, MRN)
+				os.system('clear')
 		searchResult, MRN = queryMRN(database)
 	print "Goodbye!"
 
