@@ -8,6 +8,8 @@ import os
 # 1) Change LVEF
 # 2) Change dateECHO
 
+
+
 # TODO:
 # 1) Figure out a way to edit the patient comments in an intuitive manner.
 #	Should be able to view the note, delete the note, edit the note
@@ -47,7 +49,7 @@ class Patient(object):
 										'sarcoidosis': sarcoidosis, 
 										'congenitalHD': congenitalHD, 
 										'Asian': Asian,
-										'eligible': False
+										'eligible': None
 		}
 		self.characteristics['amgen'] = {	'ID': 'AMGEN', 
 											'lastHospitalHF': lastHospitalHF, 					
@@ -76,11 +78,16 @@ class Patient(object):
 											'AST': AST, 
 											'severeComorbid': severeComorbid, 
 											'majorTransplant': majorTransplant,
-											'eligible': False
+											'eligible': None
 		}
 
-	def updateStudyCharcteristics(criteria, key, newValue):
-		criteria[key] = newValue
+	def updateCharacteristics(self, infoType):
+		if (infoType == 'basics'):
+			return updateBasics(self)
+		elif (infoType == 'amgen'):
+			return updateAMGEN(self)
+		elif (infoType == 'dcm'):
+			return updateDCM(self)
 
 class PatientDB:
 	def __init__(self):
@@ -110,17 +117,17 @@ def checkDCM(database, MRN):
 	}
 	if ((database.patientDB[MRN].characteristics['basics']['LVEF'] < 50) and 
 		(database.patientDB[MRN].characteristics['basics']['pastToxicCV'] == False) and 
-		(database.patientDB[MRN].characteristics['basics']['SBP'] > 180 or database.patientDB[MRN].characteristics['basics']['DBP'] > 120) and 
-		(database.patientDB[MRN].characteristics['dcm']['LVIDd'] > DCMThresholds[database.patientDB[MRN].characteristics['basics']['sex']]) and 
+		(database.patientDB[MRN].characteristics['basics']['SBP'] < 180 and database.patientDB[MRN].characteristics['basics']['DBP'] < 120) and 
+		(database.patientDB[MRN].characteristics['dcm']['LVIDd'] > DCMThresholds[database.patientDB[MRN].characteristics['basics']['sex']][database.patientDB[MRN].characteristics['dcm']['height']]) and 
 		((database.patientDB[MRN].characteristics['dcm']['CAD'] == False) or (database.patientDB[MRN].characteristics['dcm']['percentStenosis'] < 50)) and 
 		(all(dx is False for dx in [database.patientDB[MRN].characteristics['dcm']['hypertrophicCM'], database.patientDB[MRN].characteristics['dcm']['amyloidosis'], database.patientDB[MRN].characteristics['dcm']['sarcoidosis']])) and 
 		(database.patientDB[MRN].characteristics['dcm']['congenitalHD'] == False) and 
 		(database.patientDB[MRN].characteristics['dcm']['Asian'] == False)
 		):
-		database.patientDB[MRN].characteristics['dcm']['DCMEligible'] = True
+		database.patientDB[MRN].characteristics['dcm']['eligible'] = True
 		return True
 	else:
-		database.patientDB[MRN].characteristics['dcm']['DCMEligible'] = False
+		database.patientDB[MRN].characteristics['dcm']['eligible'] = False
 		return False
 
 # Also routinely scheduled IV
@@ -153,16 +160,16 @@ def checkAMGEN(database, MRN):
 		(database.patientDB[MRN].characteristics['amgen']['lastCardiacIntervention'] < datetime.date.today() - datetime.timedelta(days=90)) and 
 		(database.patientDB[MRN].characteristics['amgen']['lastDeviceInsertion'] < datetime.date.today() - datetime.timedelta(days=30))
 		):
-		database.patientDB[MRN].characteristics['amgen']['AMGENEligible'] = True
+		database.patientDB[MRN].characteristics['amgen']['eligible'] = True
 		return True
 	else:
-		database.patientDB[MRN].characteristics['amgen']['AMGENEligible'] = False
+		database.patientDB[MRN].characteristics['amgen']['eligible'] = False
 		return False
 
 def queryMRN(database):
-	MRN = raw_input("Please enter patient MRN, or type 'Exit': ")
+	MRN = raw_input("Please enter patient MRN, or enter 'Exit' to exit:\n")
 	if (MRN == 'Exit'):
-		return False, 0
+		return False, -1
 	elif (MRN in database.patientDB.keys()):
 		return True, MRN
 	else:
@@ -170,57 +177,94 @@ def queryMRN(database):
 
 def createPatient(MRN):
 	print "New patient for MRN:", MRN
-	name = raw_input("Patient Name: ")
-	age = int(raw_input("Patient Age: "))
-	sex = raw_input("Patient Sex: ")
-	SBP = int(raw_input("Patient SBP: "))
-	DBP = int(raw_input("Patient DBP: "))
-	NYHA = int(raw_input("NYHA: "))		# Flesh this out
+	name = raw_input("Name: ")
+	age = int(raw_input("Age: "))
+	sex = raw_input("Sex: ")
+	SBP = int(raw_input("Systolic Blood Pressure: "))
+	DBP = int(raw_input("Diastolic Blood Pressure: "))
+	NYHA = int(raw_input("NYHA Class: "))		# Flesh this out
 	LVEF = int(raw_input("Most recent LVEF: "))
 	dateECHO = raw_input("Date of most recent ECHO: ")
-	pastToxicCV = str2bool(raw_input("Cardiotoxic Drug Exposure (True/False): "))		# Flesh this out
-	NTproBNP = int(raw_input("NTproBNP: "))
+	pastToxicCV = str2bool(raw_input("Cardiotoxic Drug Exposure (T/F): "))		# Flesh this out
+	NTproBNP = int(raw_input("NT-proBNP: "))
 	language = raw_input("Preferred Language: ")
 	newPatient = Patient(name, age, sex, SBP, DBP, NYHA, LVEF, dateECHO, pastToxicCV, NTproBNP, language)
 	return newPatient
 
 def displayEligibility(database, MRN):
-	print "Study Eligibility for", database.patientDB[MRN].characteristics['basics']['name'], "(", MRN, ") \n"
-	for key in database.patientDB[MRN].characteristics.keys():
-		if (key != 'basics'):
-			print database.patientDB[MRN].characteristics[key]['ID'] + ":", database.patientDB[MRN].characteristics[key]['eligible']
-	option = raw_input("\n View details? Enter a study name or type 'Exit' \n")
+	print "Details for", database.patientDB[MRN].characteristics['basics']['name'], "( MRN:", MRN, ") \n"
+	print '[ 1 ] Basics'
+	studyIndices = range(2, len(database.patientDB[MRN].characteristics.keys()) + 1)
+	studyIDs = [key for key in database.patientDB[MRN].characteristics.keys() if key != 'basics']
+	optionDict = dict(zip(studyIndices, studyIDs))
+	optionDict[len(database.patientDB[MRN].characteristics.keys()) + 1] = 'exit'
+	for idx, key in zip(studyIndices, studyIDs):
+		if (database.patientDB[MRN].characteristics[key]['eligible'] == True):
+			print '[', idx, ']', database.patientDB[MRN].characteristics[key]['ID'] + ":", "Eligible for Study"
+		elif (database.patientDB[MRN].characteristics[key]['eligible'] == False):
+			print '[', idx, ']', database.patientDB[MRN].characteristics[key]['ID'] + ":", "Not Eligible for Study"
+		elif (database.patientDB[MRN].characteristics[key]['eligible'] == None):
+			print '[', idx, ']', database.patientDB[MRN].characteristics[key]['ID'] + ":", "Not Screened"
+	print '[', len(database.patientDB[MRN].characteristics.keys()) + 1, ']', 'Exit'
+	option = int(raw_input("\nView details? "))
+	return optionDict[option]
+
+def updateBasics(patient):
+	keys = range(1, 12)
+	basicsValues = ['name', 'age', 'sex', 'SBP', 'DBP', 'NYHA', 'LVEF', 'dateECHO', 'pastToxicCV', 'NTproBNP', 'language']
+	optionDict = dict(itertools.izip(keys, basicsValues))
+	print '[ 1 ] Name:', patient.characteristics['basics']['name']
+	print '[ 2 ] Age:', patient.characteristics['basics']['age']
+	print '[ 3 ] Sex:', patient.characteristics['basics']['sex']
+	print '[ 4 ] Systolic Blood Pressure:', patient.characteristics['basics']['SBP']
+	print '[ 5 ] Diastolic Blood Pressure:', patient.characteristics['basics']['DBP']
+	print '[ 6 ] NYHA Class:', patient.characteristics['basics']['NYHA']
+	print '[ 7 ] Most recent LVEF:', patient.characteristics['basics']['LVEF']
+	print '[ 8 ] Date of most recent ECHO:', patient.characteristics['basics']['dateECHO']
+	print '[ 9 ] Cardiotoxic Drug Exposure (T/F):', patient.characteristics['basics']['pastToxicCV']
+	print '[ 10 ] NT-proBNP:', patient.characteristics['basics']['NTproBNP']
+	print '[ 11 ] Preferred Language', patient.characteristics['basics']['language']
+	print '[ 12 ] Exit'
+	option = int(raw_input("Choose a value to edit: "))
+	while (option in keys):
+		if (option in [2, 4, 5, 6, 7, 10]):
+			newValue = int(raw_input("Enter new value: "))
+		elif (option in [1, 3, 8, 11]):
+			newValue = str(raw_input("Enter new value: "))
+		elif (option in [9]):
+			newValue = str2bool(raw_input("Enter new value: "))
+		patient.characteristics['basics'][optionDict[option]] = newValue
+		os.system('clear')
+		print '[ 1 ] Name:', patient.characteristics['basics']['name']
+		print '[ 2 ] Age:', patient.characteristics['basics']['age']
+		print '[ 3 ] Sex:', patient.characteristics['basics']['sex']
+		print '[ 4 ] Systolic Blood Pressure:', patient.characteristics['basics']['SBP']
+		print '[ 5 ] Diastolic Blood Pressure:', patient.characteristics['basics']['DBP']
+		print '[ 6 ] NYHA Class:', patient.characteristics['basics']['NYHA']
+		print '[ 7 ] Most recent LVEF:', patient.characteristics['basics']['LVEF']
+		print '[ 8 ] Date of most recent ECHO:', patient.characteristics['basics']['dateECHO']
+		print '[ 9 ] Cardiotoxic Drug Exposure (T/F):', patient.characteristics['basics']['pastToxicCV']
+		print '[ 10 ] NT-proBNP:', patient.characteristics['basics']['NTproBNP']
+		print '[ 11 ] Preferred Language:', patient.characteristics['basics']['language']
+		print '[ 12 ] Exit'
+		option = int(raw_input("Choose a value to edit: "))
+	if (option == 12):
+		return -1
 	return option
 
-def updateStudyCharacteristics(database, MRN):
-	optionNumbers = [num for num in range(len(database.patientDB[MRN].keys()))]
-	optionNumber = 0
-	for key in database.patientDB[MRN].characteristics.keys():
-		print '[', optionNumbers[optionNumber], ']', database.patientDB[MRN].characteristics[key]['ID']
-		option += 1
-	optionNumber += 1
-	print '[', optionNumber, ']', 'Exit'
-	option = raw_input("Choose a study to update values for: ")
-	if (option == 1):
-		updateAMGEN(database, MRN)
-	elif (option == 2):
-		updateDCM(database, MRN)
-	elif (option == 3):
-		return -1
-
-def updateDCM(database, MRN):
+def updateDCM(patient):
 	keys = range(1, 10)
 	dcmValues = ['LVIDd', 'height', 'CAD', 'percentStenosis', 'hypertrophicCM', 'amyloidosis', 'sarcoidosis', 'congenitalHD', 'Asian']
 	optionDict = dict(itertools.izip(keys, dcmValues))
-	print '[ 1 ] LVIDd:', database.patientDB[MRN].characteristics['dcm']['LVIDd']
-	print '[ 2 ] Height:', database.patientDB[MRN].characteristics['dcm']['height']
-	print '[ 3 ] CAD (T/F):', database.patientDB[MRN].characteristics['dcm']['CAD']
-	print '[ 4 ] Percent Stenosis:', database.patientDB[MRN].characteristics['dcm']['percentStenosis']
-	print '[ 5 ] Hypertrophic CM (T/F):', database.patientDB[MRN].characteristics['dcm']['hypertrophicCM']
-	print '[ 6 ] Amyloidosis (T/F):', database.patientDB[MRN].characteristics['dcm']['amyloidosis']
-	print '[ 7 ] Sarcoidosis (T/F):', database.patientDB[MRN].characteristics['dcm']['sarcoidosis']
-	print '[ 8 ] Congenital Heart Disease (T/F):', database.patientDB[MRN].characteristics['dcm']['congenitalHD']
-	print '[ 9 ] Asian Ethnicity (T/F):', database.patientDB[MRN].characteristics['dcm']['Asian']
+	print '[ 1 ] LVIDd:', patient.characteristics['dcm']['LVIDd']
+	print '[ 2 ] Height:', patient.characteristics['dcm']['height']
+	print '[ 3 ] CAD (T/F):', patient.characteristics['dcm']['CAD']
+	print '[ 4 ] Percent Stenosis:', patient.characteristics['dcm']['percentStenosis']
+	print '[ 5 ] Hypertrophic CM (T/F):', patient.characteristics['dcm']['hypertrophicCM']
+	print '[ 6 ] Amyloidosis (T/F):', patient.characteristics['dcm']['amyloidosis']
+	print '[ 7 ] Sarcoidosis (T/F):', patient.characteristics['dcm']['sarcoidosis']
+	print '[ 8 ] Congenital Heart Disease (T/F):', patient.characteristics['dcm']['congenitalHD']
+	print '[ 9 ] Asian Ethnicity (T/F):', patient.characteristics['dcm']['Asian']
 	print '[ 10 ] Exit'
 	option = int(raw_input("Choose a value to edit: "))
 	while (option in keys):
@@ -228,21 +272,24 @@ def updateDCM(database, MRN):
 			newValue = int(raw_input("Enter new value: "))
 		elif (option in [3, 5, 6, 7, 8, 9]):
 			newValue = str2bool(raw_input("Enter new value: "))
-		database.patientDB[MRN].characteristics['dcm'][optionDict[option]] = newValue
-		print '[ 1 ] LVIDd:', database.patientDB[MRN].characteristics['dcm']['LVIDd']
-		print '[ 2 ] Height:', database.patientDB[MRN].characteristics['dcm']['height']
-		print '[ 3 ] CAD (T/F):', database.patientDB[MRN].characteristics['dcm']['CAD']
-		print '[ 4 ] Percent Stenosis:', database.patientDB[MRN].characteristics['dcm']['percentStenosis']
-		print '[ 5 ] Hypertrophic CM (T/F):', database.patientDB[MRN].characteristics['dcm']['hypertrophicCM']
-		print '[ 6 ] Amyloidosis (T/F):', database.patientDB[MRN].characteristics['dcm']['amyloidosis']
-		print '[ 7 ] Sarcoidosis (T/F):', database.patientDB[MRN].characteristics['dcm']['sarcoidosis']
-		print '[ 8 ] Congenital Heart Disease (T/F):', database.patientDB[MRN].characteristics['dcm']['congenitalHD']
-		print '[ 9 ] Asian Ethnicity (T/F):', database.patientDB[MRN].characteristics['dcm']['Asian']
+		patient.characteristics['dcm'][optionDict[option]] = newValue
+		os.system('clear')
+		print '[ 1 ] LVIDd:', patient.characteristics['dcm']['LVIDd']
+		print '[ 2 ] Height:', patient.characteristics['dcm']['height']
+		print '[ 3 ] CAD (T/F):', patient.characteristics['dcm']['CAD']
+		print '[ 4 ] Percent Stenosis:', patient.characteristics['dcm']['percentStenosis']
+		print '[ 5 ] Hypertrophic CM (T/F):', patient.characteristics['dcm']['hypertrophicCM']
+		print '[ 6 ] Amyloidosis (T/F):', patient.characteristics['dcm']['amyloidosis']
+		print '[ 7 ] Sarcoidosis (T/F):', patient.characteristics['dcm']['sarcoidosis']
+		print '[ 8 ] Congenital Heart Disease (T/F):', patient.characteristics['dcm']['congenitalHD']
+		print '[ 9 ] Asian Ethnicity (T/F):', patient.characteristics['dcm']['Asian']
 		print '[ 10 ] Exit'
 		option = int(raw_input("Choose a value to edit: "))
+	if (option == 10):
+		return -1
 	return option
 
-def updateAMGEN(database, MRN):
+def updateAMGEN(patient):
 	keys = range(1, 27)
 	amgenValues = [	'lastHospitalHF', 'malignancies', 'stageCKD', 'HDSupport', 'afib', 'NIV', 'lastACS', 
 					'lastStroke', 'lastTIA', 'lastCardiacIntervention', 'lastDeviceInsertion', 'valvularDisease',
@@ -250,71 +297,80 @@ def updateAMGEN(database, MRN):
 					'severeVArrhythmia', 'antiarrhythmics', 'symptomBrady', 'eGFR', 'TBL', 'ALT', 'AST', 
 					'severeComorbid', 'majorTransplant']	
 	optionDict = dict(itertools.izip(keys, amgenValues))
-	print '[ 1 ] Most recent hospitalization for HF: ', database.patientDB[MRN].characteristics['amgen']['lastHospitalHF']
-	print '[ 2 ] Malignancies (T/F): ', database.patientDB[MRN].characteristics['amgen']['malignancies']
-	print '[ 3 ] Stage of CKD: ', database.patientDB[MRN].characteristics['amgen']['stageCKD']
-	print '[ 4 ] On Hemodynamic Support (T/F): ', database.patientDB[MRN].characteristics['amgen']['HDSupport']
-	print '[ 5 ] In Atrial Fibrillation (T/F): ', database.patientDB[MRN].characteristics['amgen']['afib']
-	print '[ 6 ] On Non-invasive Ventilation (T/F): ', database.patientDB[MRN].characteristics['amgen']['NIV']
-	print '[ 7 ] Most recent ACS: ', database.patientDB[MRN].characteristics['amgen']['lastACS']
-	print '[ 8 ] Most recent Stroke: ', database.patientDB[MRN].characteristics['amgen']['lastStroke']
-	print '[ 9 ] Most recent Transischemic Attack: ', database.patientDB[MRN].characteristics['amgen']['lastTIA']
-	print '[ 10 ] Most recent Cardiac Intervention: ', database.patientDB[MRN].characteristics['amgen']['lastCardiacIntervention']
-	print '[ 11 ] Most recent Cardiac Device Insertion: ', database.patientDB[MRN].characteristics['amgen']['lastDeviceInsertion']
-	print '[ 12 ] Any severe, uncorrected Valvular Disease (T/F): ', database.patientDB[MRN].characteristics['amgen']['valvularDisease']
-	print '[ 13 ] Hypertrophic Cardiomyopathy Diagnosis (T/F): ', database.patientDB[MRN].characteristics['amgen']['hypertrophicCM']
-	print '[ 14 ] Infiltrative Cardiomyopathy Diagnosis (T/F): ', database.patientDB[MRN].characteristics['amgen']['infiltrativeCM']
-	print '[ 15 ] Active Myocarditis (T/F): ', database.patientDB[MRN].characteristics['amgen']['myocarditis']
-	print '[ 16 ] Constrictive Pericarditis (T/F): ', database.patientDB[MRN].characteristics['amgen']['pericarditis']
-	print '[ 17 ] Congenital Heart Disease (T/F): ', database.patientDB[MRN].characteristics['amgen']['congenitalHD']
-	print '[ 18 ] Severe Ventricular Arrhythmia (T/F): ', database.patientDB[MRN].characteristics['amgen']['severeVArrhythmia']
-	print '[ 19 ] Any exclusionary antiarrhythmics (T/F): ', database.patientDB[MRN].characteristics['amgen']['antiarrhythmics']
-	print '[ 20 ] Symptomatic Bradycardia or 2nd or 3rd degree Heart Block without a pacemaker (T/F): ', database.patientDB[MRN].characteristics['amgen']['symptomBrady']
-	print '[ 21 ] eGFR: ', database.patientDB[MRN].characteristics['amgen']['eGFR']
-	print '[ 22 ] TBL: ', database.patientDB[MRN].characteristics['amgen']['TBL']
-	print '[ 23 ] AST: ', database.patientDB[MRN].characteristics['amgen']['ALT']
-	print '[ 24 ] ALT: ', database.patientDB[MRN].characteristics['amgen']['AST']
-	print '[ 25 ] Severe comorbidities expected to reduce life expectancy to < 2 years (T/F): ', database.patientDB[MRN].characteristics['amgen']['severeComorbid']
-	print '[ 26 ] Any major organ transplant (T/F): ', database.patientDB[MRN].characteristics['amgen']['majorTransplant']
+	print '[ 1 ] Most recent hospitalization for HF: ', patient.characteristics['amgen']['lastHospitalHF']
+	print '[ 2 ] Malignancies (T/F): ', patient.characteristics['amgen']['malignancies']
+	print '[ 3 ] Stage of CKD: ', patient.characteristics['amgen']['stageCKD']
+	print '[ 4 ] On Hemodynamic Support (T/F): ', patient.characteristics['amgen']['HDSupport']
+	print '[ 5 ] In Atrial Fibrillation (T/F): ', patient.characteristics['amgen']['afib']
+	print '[ 6 ] On Non-invasive Ventilation (T/F): ', patient.characteristics['amgen']['NIV']
+	print '[ 7 ] Most recent ACS: ', patient.characteristics['amgen']['lastACS']
+	print '[ 8 ] Most recent Stroke: ', patient.characteristics['amgen']['lastStroke']
+	print '[ 9 ] Most recent Transischemic Attack: ', patient.characteristics['amgen']['lastTIA']
+	print '[ 10 ] Most recent Cardiac Intervention: ', patient.characteristics['amgen']['lastCardiacIntervention']
+	print '[ 11 ] Most recent Cardiac Device Insertion: ', patient.characteristics['amgen']['lastDeviceInsertion']
+	print '[ 12 ] Any severe, uncorrected Valvular Disease (T/F): ', patient.characteristics['amgen']['valvularDisease']
+	print '[ 13 ] Hypertrophic Cardiomyopathy Diagnosis (T/F): ', patient.characteristics['amgen']['hypertrophicCM']
+	print '[ 14 ] Infiltrative Cardiomyopathy Diagnosis (T/F): ', patient.characteristics['amgen']['infiltrativeCM']
+	print '[ 15 ] Active Myocarditis (T/F): ', patient.characteristics['amgen']['myocarditis']
+	print '[ 16 ] Constrictive Pericarditis (T/F): ', patient.characteristics['amgen']['pericarditis']
+	print '[ 17 ] Congenital Heart Disease (T/F): ', patient.characteristics['amgen']['congenitalHD']
+	print '[ 18 ] Severe Ventricular Arrhythmia (T/F): ', patient.characteristics['amgen']['severeVArrhythmia']
+	print '[ 19 ] Any exclusionary antiarrhythmics (T/F): ', patient.characteristics['amgen']['antiarrhythmics']
+	print '[ 20 ] Symptomatic Bradycardia or 2nd or 3rd degree Heart Block without a pacemaker (T/F): ', patient.characteristics['amgen']['symptomBrady']
+	print '[ 21 ] eGFR: ', patient.characteristics['amgen']['eGFR']
+	print '[ 22 ] TBL: ', patient.characteristics['amgen']['TBL']
+	print '[ 23 ] AST: ', patient.characteristics['amgen']['ALT']
+	print '[ 24 ] ALT: ', patient.characteristics['amgen']['AST']
+	print '[ 25 ] Severe comorbidities expected to reduce life expectancy to < 2 years (T/F): ', patient.characteristics['amgen']['severeComorbid']
+	print '[ 26 ] Any major organ transplant (T/F): ', patient.characteristics['amgen']['majorTransplant']
 	print '[ 27 ] Exit'
 	option = int(raw_input("Choose a value to edit: "))
 	while (option in keys):
-		newValue = raw_input("Enter new value: ")
-		database.patientDB[MRN].characteristics['amgen'][optionDict[option]] = newValue
-		print '[ 1 ] Most recent hospitalization for HF: ', database.patientDB[MRN].characteristics['amgen']['lastHospitalHF']
-		print '[ 2 ] Malignancies (T/F): ', database.patientDB[MRN].characteristics['amgen']['malignancies']
-		print '[ 3 ] Stage of CKD: ', database.patientDB[MRN].characteristics['amgen']['stageCKD']
-		print '[ 4 ] On Hemodynamic Support (T/F): ', database.patientDB[MRN].characteristics['amgen']['HDSupport']
-		print '[ 5 ] In Atrial Fibrillation (T/F): ', database.patientDB[MRN].characteristics['amgen']['afib']
-		print '[ 6 ] On Non-invasive Ventilation (T/F): ', database.patientDB[MRN].characteristics['amgen']['NIV']
-		print '[ 7 ] Most recent ACS: ', database.patientDB[MRN].characteristics['amgen']['lastACS']
-		print '[ 8 ] Most recent Stroke: ', database.patientDB[MRN].characteristics['amgen']['lastStroke']
-		print '[ 9 ] Most recent Transischemic Attack: ', database.patientDB[MRN].characteristics['amgen']['lastTIA']
-		print '[ 10 ] Most recent Cardiac Intervention: ', database.patientDB[MRN].characteristics['amgen']['lastCardiacIntervention']
-		print '[ 11 ] Most recent Cardiac Device Insertion: ', database.patientDB[MRN].characteristics['amgen']['lastDeviceInsertion']
-		print '[ 12 ] Any severe, uncorrected Valvular Disease (T/F): ', database.patientDB[MRN].characteristics['amgen']['valvularDisease']
-		print '[ 13 ] Hypertrophic Cardiomyopathy Diagnosis (T/F): ', database.patientDB[MRN].characteristics['amgen']['hypertrophicCM']
-		print '[ 14 ] Infiltrative Cardiomyopathy Diagnosis (T/F): ', database.patientDB[MRN].characteristics['amgen']['infiltrativeCM']
-		print '[ 15 ] Active Myocarditis (T/F): ', database.patientDB[MRN].characteristics['amgen']['myocarditis']
-		print '[ 16 ] Constrictive Pericarditis (T/F): ', database.patientDB[MRN].characteristics['amgen']['pericarditis']
-		print '[ 17 ] Congenital Heart Disease (T/F): ', database.patientDB[MRN].characteristics['amgen']['congenitalHD']
-		print '[ 18 ] Severe Ventricular Arrhythmia (T/F): ', database.patientDB[MRN].characteristics['amgen']['severeVArrhythmia']
-		print '[ 19 ] Any exclusionary antiarrhythmics (T/F): ', database.patientDB[MRN].characteristics['amgen']['antiarrhythmics']
-		print '[ 20 ] Symptomatic Bradycardia or 2nd or 3rd degree Heart Block without a pacemaker (T/F): ', database.patientDB[MRN].characteristics['amgen']['symptomBrady']
-		print '[ 21 ] eGFR: ', database.patientDB[MRN].characteristics['amgen']['eGFR']
-		print '[ 22 ] TBL: ', database.patientDB[MRN].characteristics['amgen']['TBL']
-		print '[ 23 ] AST: ', database.patientDB[MRN].characteristics['amgen']['ALT']
-		print '[ 24 ] ALT: ', database.patientDB[MRN].characteristics['amgen']['AST']
-		print '[ 25 ] Severe comorbidities expected to reduce life expectancy to < 2 years (T/F): ', database.patientDB[MRN].characteristics['amgen']['severeComorbid']
-		print '[ 26 ] Any major organ transplant (T/F): ', database.patientDB[MRN].characteristics['amgen']['majorTransplant']
+		if (option in [3, 21, 22, 23, 24]):
+			newValue = int(raw_input("Enter new value: "))
+		elif (option in [2, 4, 5, 6, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 26]):
+			newValue = str2bool(raw_input("Enter new value: "))
+		elif (option in [1, 7, 8, 9, 10, 11]):
+			newValue = str(raw_input("Enter new value: "))
+		patient.characteristics['amgen'][optionDict[option]] = newValue
+		os.system('clear')
+		print '[ 1 ] Most recent hospitalization for HF: ', patient.characteristics['amgen']['lastHospitalHF']
+		print '[ 2 ] Malignancies (T/F): ', patient.characteristics['amgen']['malignancies']
+		print '[ 3 ] Stage of CKD: ', patient.characteristics['amgen']['stageCKD']
+		print '[ 4 ] On Hemodynamic Support (T/F): ', patient.characteristics['amgen']['HDSupport']
+		print '[ 5 ] In Atrial Fibrillation (T/F): ', patient.characteristics['amgen']['afib']
+		print '[ 6 ] On Non-invasive Ventilation (T/F): ', patient.characteristics['amgen']['NIV']
+		print '[ 7 ] Most recent ACS: ', patient.characteristics['amgen']['lastACS']
+		print '[ 8 ] Most recent Stroke: ', patient.characteristics['amgen']['lastStroke']
+		print '[ 9 ] Most recent Transischemic Attack: ', patient.characteristics['amgen']['lastTIA']
+		print '[ 10 ] Most recent Cardiac Intervention: ', patient.characteristics['amgen']['lastCardiacIntervention']
+		print '[ 11 ] Most recent Cardiac Device Insertion: ', patient.characteristics['amgen']['lastDeviceInsertion']
+		print '[ 12 ] Any severe, uncorrected Valvular Disease (T/F): ', patient.characteristics['amgen']['valvularDisease']
+		print '[ 13 ] Hypertrophic Cardiomyopathy Diagnosis (T/F): ', patient.characteristics['amgen']['hypertrophicCM']
+		print '[ 14 ] Infiltrative Cardiomyopathy Diagnosis (T/F): ', patient.characteristics['amgen']['infiltrativeCM']
+		print '[ 15 ] Active Myocarditis (T/F): ', patient.characteristics['amgen']['myocarditis']
+		print '[ 16 ] Constrictive Pericarditis (T/F): ', patient.characteristics['amgen']['pericarditis']
+		print '[ 17 ] Congenital Heart Disease (T/F): ', patient.characteristics['amgen']['congenitalHD']
+		print '[ 18 ] Severe Ventricular Arrhythmia (T/F): ', patient.characteristics['amgen']['severeVArrhythmia']
+		print '[ 19 ] Any exclusionary antiarrhythmics (T/F): ', patient.characteristics['amgen']['antiarrhythmics']
+		print '[ 20 ] Symptomatic Bradycardia or 2nd or 3rd degree Heart Block without a pacemaker (T/F): ', patient.characteristics['amgen']['symptomBrady']
+		print '[ 21 ] eGFR: ', patient.characteristics['amgen']['eGFR']
+		print '[ 22 ] TBL: ', patient.characteristics['amgen']['TBL']
+		print '[ 23 ] AST: ', patient.characteristics['amgen']['ALT']
+		print '[ 24 ] ALT: ', patient.characteristics['amgen']['AST']
+		print '[ 25 ] Severe comorbidities expected to reduce life expectancy to < 2 years (T/F): ', patient.characteristics['amgen']['severeComorbid']
+		print '[ 26 ] Any major organ transplant (T/F): ', patient.characteristics['amgen']['majorTransplant']
 		print '[ 27 ] Exit'
 		option = int(raw_input("Choose a value to edit: "))
+	if (option == 27):
+		return -1
 	return option
 
 def str2bool(s):
 	s = s.lower()
 	if (s in ["f", "false", "n", "no"]):
 		return False
+		
 # Prompt user for import?
 # Prompt user to add patient
 # Prompt user to view patient lists
@@ -323,46 +379,28 @@ def main():
 	database = PatientDB()
 	searchResult, MRN = queryMRN(database)
 	os.system('clear')
-	while (MRN != 0):
+	while (MRN != -1):
 		if (searchResult):
 			study = displayEligibility(database, MRN)
 			os.system('clear')
-			while (study != 'Exit'):
-				if (study == 'DCM'):
-					edit = 0
-					while (edit != 10):
-						edit = updateDCM(database, MRN)
-						checkDCM(database, MRN)
-						os.system('clear')
-				elif (study == 'AMGEN'):
-					edit = 0
-					while (edit != 27):
-						edit = updateAMGEN(database, MRN)
-						checkAMGEN(database, MRN)
-						os.system('clear')
+			while (study != 'exit'):
+				edit = 0
+				while (edit != -1):
+					edit = database.patientDB[MRN].updateCharacteristics(study)
+					os.system('clear')
 				study = displayEligibility(database, MRN)
-				os.system('clear')
 		else:
 			newPatient = createPatient(MRN)
 			database.addPatient(MRN, newPatient)
 			os.system('clear')
 			study = displayEligibility(database, MRN)
 			os.system('clear')
-			while (study != 'Exit'):
-				if (study == 'DCM'):
-					edit = 0
-					while (edit != 10):
-						edit = updateDCM(database, MRN)
-						checkDCM(database, MRN)
-						os.system('clear')
-				elif (study == 'AMGEN'):
-					edit = 0
-					while (edit != 27):
-						edit = updateAMGEN(database, MRN)
-						checkAMGEN(database, MRN)
-						os.system('clear')
+			while (study != 'exit'):
+				edit = 0
+				while (edit != -1):
+					edit = database.patientDB[MRN].updateCharacteristics(study)
+					os.system('clear')
 				study = displayEligibility(database, MRN)
-				os.system('clear')
 		searchResult, MRN = queryMRN(database)
 	print "Goodbye!"
 
