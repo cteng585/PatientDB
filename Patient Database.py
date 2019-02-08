@@ -4,17 +4,16 @@ import os
 # TODO
 # Come up with some sort of alert system? Maybe a way to email? HTTP format for patients?
 
-# Base patient
-# 1) Change LVEF
-# 2) Change dateECHO
-
-
-
 # TODO:
 # 1) Figure out a way to edit the patient comments in an intuitive manner.
 #	Should be able to view the note, delete the note, edit the note
-# 4) Create list of cardiotoxic drugs (Appendix 2 HCM Protocol)
-# 5) Create list of Oral SoC drugs
+# 2) Create list of cardiotoxic drugs (Appendix 2 HCM Protocol)
+# 3) Create list of Oral SoC drugs
+# 4) Make a wrapper for user inputs to handle bool vs int vs datetime vs string
+# 5) Make a way to pull a specific patient subset
+# 6) Export to TSV/CSV
+# 7) Import from TSV/CSV
+# 8) Make prescreening work
 class Patient(object):
 	def __init__(self, name, age, sex, SBP, DBP, NYHA, LVEF, dateECHO, pastToxicCV, NTproBNP, language, 
 					LVIDd=None, height=None, CAD=None, percentStenosis=None, hypertrophicCM=None, amyloidosis=None,
@@ -129,6 +128,7 @@ class Patient(object):
 		}
 
 	def updateCharacteristics(self, infoType):
+		os.system('clear')
 		if (infoType == 'basics'):
 			return updateBasics(self)
 		elif (infoType == 'amgen'):
@@ -151,7 +151,18 @@ class PatientDB:
 	def getPatient(self, MRN):
 		return self.patientDB[MRN]
 
+	def getStudyPatients(study):
+		studyList = dict()
+		try:
+			for MRN in self.patientDB.keys():
+				if (self.patientDB[MRN].characteristics[study]['eligible'] == True):
+					studyList[MRN] = self.patientDB[MRN]
+			return studyList
+		except KeyError:
+			print "That study doesn't appear to exist in the database"
+
 def updateBasics(patient):
+	os.system('clear')
 	keys = range(1, 12)
 	basicsValues = ['name', 'age', 'sex', 'SBP', 'DBP', 'NYHA', 'LVEF', 'dateECHO', 'pastToxicCV', 'NTproBNP', 'language']
 	optionDict = dict(itertools.izip(keys, basicsValues))
@@ -167,14 +178,16 @@ def updateBasics(patient):
 	print '[ 10 ] NT-proBNP:', patient.characteristics['basics']['NTproBNP']
 	print '[ 11 ] Preferred Language', patient.characteristics['basics']['language']
 	print '[ 12 ] Exit'
-	option = int(raw_input("Choose a value to edit: "))
+	option = userInput("Choose a value to edit: ", 'int')
 	while (option in keys):
 		if (option in [2, 4, 5, 6, 7, 10]):
-			newValue = int(raw_input("Enter new value: "))
-		elif (option in [1, 3, 8, 11]):
-			newValue = str(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'int')
 		elif (option in [9]):
-			newValue = str2bool(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'bool')	
+		elif (option in [1, 3, 11]):
+			newValue = userInput("Enter new value: ", 'str')
+		elif (option in [8]):
+			newValue = userInput("Enter new value: ", 'date')
 		patient.characteristics['basics'][optionDict[option]] = newValue
 		os.system('clear')
 		print '[ 1 ] Name:', patient.characteristics['basics']['name']
@@ -189,9 +202,10 @@ def updateBasics(patient):
 		print '[ 10 ] NT-proBNP:', patient.characteristics['basics']['NTproBNP']
 		print '[ 11 ] Preferred Language:', patient.characteristics['basics']['language']
 		print '[ 12 ] Exit'
-		option = int(raw_input("Choose a value to edit: "))
+		option = userInput("Choose a value to edit: ", 'int')
 
 def updateDCM(patient):
+	os.system('clear')
 	keys = range(1, 11)
 	dcmValues = ['LVIDd', 'height', 'CAD', 'percentStenosis', 'hypertrophicCM', 'amyloidosis', 'sarcoidosis', 'congenitalHD', 'Asian', 'eligible']
 	optionDict = dict(itertools.izip(keys, dcmValues))
@@ -206,12 +220,12 @@ def updateDCM(patient):
 	print '[ 9 ] Asian Ethnicity (T/F):', patient.characteristics['dcm']['Asian']
 	print '[ 10 ] Eligible for Study:', patient.characteristics['dcm']['eligible']
 	print '[ 11 ] Exit'
-	option = int(raw_input("Choose a value to edit: "))
+	option = userInput("Choose a value to edit: ", 'int')
 	while (option in keys):
 		if (option in [1, 2, 4]):
-			newValue = int(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'int')
 		elif (option in [3, 5, 6, 7, 8, 9, 10]):
-			newValue = str2bool(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'bool')
 		patient.characteristics['dcm'][optionDict[option]] = newValue
 		os.system('clear')
 		print '[ 1 ] LVIDd:', patient.characteristics['dcm']['LVIDd']
@@ -225,9 +239,10 @@ def updateDCM(patient):
 		print '[ 9 ] Asian Ethnicity (T/F):', patient.characteristics['dcm']['Asian']
 		print '[ 10 ] Eligible for Study:', patient.characteristics['dcm']['eligible']
 		print '[ 11 ] Exit'
-		option = int(raw_input("Choose a value to edit: "))
+		option = userInput("Choose a value to edit: ", 'int')
 
 def updateAMGEN(patient):
+	os.system('clear')
 	keys = range(1, 28)
 	amgenValues = [	'lastHospitalHF', 'malignancies', 'stageCKD', 'HDSupport', 'afib', 'NIV', 'lastACS', 
 					'lastStroke', 'lastTIA', 'lastCardiacIntervention', 'lastDeviceInsertion', 'valvularDisease',
@@ -263,14 +278,14 @@ def updateAMGEN(patient):
 	print '[ 26 ] Any major organ transplant (T/F): ', patient.characteristics['amgen']['majorTransplant']
 	print '[ 27 ] Eligible for Study:', patient.characteristics['amgen']['eligible']
 	print '[ 28 ] Exit'
-	option = int(raw_input("Choose a value to edit: "))
+	option = userInput("Choose a value to edit: ", 'int')
 	while (option in keys):
 		if (option in [3, 21, 22, 23, 24]):
-			newValue = int(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'int')
 		elif (option in [2, 4, 5, 6, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 26, 27]):
-			newValue = str2bool(raw_input("Enter new value: "))
-		elif (option in [1, 7, 8, 9, 10, 11]):
-			newValue = str(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'bool')
+		elif (option in = [1, 7, 8, 9, 10, 11]):
+			newValue in userInput("Enter new value: ", 'date')
 		patient.characteristics['amgen'][optionDict[option]] = newValue
 		os.system('clear')
 		print '[ 1 ] Most recent hospitalization for HF: ', patient.characteristics['amgen']['lastHospitalHF']
@@ -301,9 +316,10 @@ def updateAMGEN(patient):
 		print '[ 26 ] Any major organ transplant (T/F): ', patient.characteristics['amgen']['majorTransplant']
 		print '[ 27 ] Eligible for Study:', patient.characteristics['amgen']['eligible']
 		print '[ 28 ] Exit'
-		option = int(raw_input("Choose a value to edit: "))
+		option = userInput("Choose a value to edit: ", 'int')
 
 def updateEXPLORER(patient, study):
+	os.system('clear')
 	# keys = [key for key in patient.characteristics[study].keys() if key not in ['ID', 'eligible']]
 	keys = range(1, 40)
 	explorerValues = [ 'weight', 'IVSd', 'restLVOTPG', 'valsalvaLVOTPG', 'postExerciseLVOTPG', 'O2Saturation', 'QTcF',
@@ -356,11 +372,11 @@ def updateEXPLORER(patient, study):
 	option = int(raw_input("Choose a value to edit: "))
 	while (option in optionDict.keys()):
 		if (option in [1, 2, 3, 4, 5, 6, 7, 9, 12, 32, 33, 34, 35]):
-			newValue = int(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'int')
 		elif (option in [8, 10, 11, 13, 14, 15, 16, 17, 18, 19, 24, 25, 26, 27, 28, 29, 31, 36, 37, 38, 39]):
-			newValue = str2bool(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'bool')
 		elif (option in [20, 21, 22, 23, 30]):
-			newValue = str(raw_input("Enter new value: "))
+			newValue = userInput("Enter new value: ", 'date')
 		patient.characteristics['explorer'][optionDict[option]] = newValue
 		os.system('clear')
 		print '[ 1 ] Weight (kgs):', patient.characteristics['explorer']['weight']
@@ -403,7 +419,7 @@ def updateEXPLORER(patient, study):
 		print '[ 38 ] Hepatitis B Virus (T/F):', patient.characteristics['explorer']['hepB']
 		print '[ 39 ] Eligible for Study:', patient.characteristics['explorer']['eligible']
 		print '[ 40 ] Exit'
-		option = int(raw_input("Choose a value to edit: "))
+		option = userInput("Choose a value to edit: ", 'int')
 
 def checkDCM(database, MRN): 
 	height = range(137, 199)
@@ -485,7 +501,7 @@ def createPatient(MRN):
 	sex = raw_input("Sex: ")
 	SBP = int(raw_input("Systolic Blood Pressure: "))
 	DBP = int(raw_input("Diastolic Blood Pressure: "))
-	NYHA = int(raw_input("NYHA Class: "))		# Flesh this out
+	NYHA = int(raw_input("NYHA Class (1-4): "))		# Flesh this out
 	LVEF = int(raw_input("Most recent LVEF: "))
 	dateECHO = raw_input("Date of most recent ECHO: ")
 	pastToxicCV = str2bool(raw_input("Cardiotoxic Drug Exposure (T/F): "))		# Flesh this out
@@ -513,6 +529,15 @@ def displayEligibility(database, MRN):
 	option = int(raw_input("\nView details? "))
 	return optionDict[option]
 
+def displayStudyList(database):
+	studyList = []
+	for MRN in database.patientDB.keys():
+		if (database.patientDB[MRN].characteristics[study]['eligible'] == True):
+			studyList.append(database.patientDB[MRN])
+	studyCriteria = [criteria for criteria in studyList[0].characteristics[study].keys() if criteria not in ['ID', 'eligible']]
+	with open("Study List.txt", "w+") as f:
+		f.write('\t'.join(studyCriteria[0:]) + '\n')
+
 def str2bool(s):
 	s = s.lower()
 	if (s in ["f", "false", "n", "no"]):
@@ -520,36 +545,76 @@ def str2bool(s):
 	elif (s in ["t", "true", "y", "yes"]):
 		return True
 
+def userInput(prompt, varType):
+	uin = raw_input(prompt) 
+	if (varType == 'bool'):
+		return str2bool(uin)
+	elif (varType == 'int'):
+		try:
+			return int(uin)
+		except ValueError:
+			userInput("Value entered was not a number. Please enter a number: ", 'int')
+	elif (varType == 'str'):
+		return uin
+	elif (varType == 'date'):
+		try:
+			return datetime.datetime.strptime(uin, '%x')
+		except ValueError:
+			return datetime.datetime.strptime(uin, '%m/%d/%Y')
+
+def printHeader():
+	print " \n////////////////////////////////////////////////////////////////////"
+	print "//\t _____ _           ______ _           ____________ \t  //"
+	print "//\t|_   _| |          | ___ \\ |          |  _  \\ ___ \\\t  //"
+	print "//\t  | | | |__   ___  | |_/ / |_   _  ___| | | | |_/ /\t  //"
+	print "//\t  | | | '_ \\ / _ \\ | ___ \\ | | | |/ _ \\ | | | ___ \\\t  //"
+	print "//\t  | | | | | |  __/ | |_/ / | |_| |  __/ |/ /| |_/ /\t  //"
+	print "//\t  \\_/ |_| |_|\\___| \\____/|_|\\__,_|\\___|___/ \\____/ \t  //"
+	print "////////////////////////////////////////////////////////////////////\n\n\n"
+
+def mainMenu():
+	printHeader()
+	print "[ 1 ] Search MRN"
+	print "[ 2 ] View Study Lists"
+	print "[ 3 ] Exit"
+	userInput = ("Choose a menu item above: ", 'int')
+	return userInput
+
 # Prompt user for import?
 # Prompt user to add patient
 # Prompt user to view patient lists
 def main(): 
-	os.system('clear')
 	database = PatientDB()
-	searchResult, MRN = queryMRN(database)
-	os.system('clear')
-	while (MRN != -1):
-		if (searchResult):
-			study = displayEligibility(database, MRN)
+	mainMenu = mainMenu()
+	while (mainMenu != 3):
+		if (mainMenu == 1):
 			os.system('clear')
-			while (study != 'exit'):
-				edit = 0
-				while (edit != -1):
-					edit = database.patientDB[MRN].updateCharacteristics(study)
-					os.system('clear')
-				study = displayEligibility(database, MRN)
-		else:
-			newPatient = createPatient(MRN)
-			database.addPatient(MRN, newPatient)
+			searchResult, MRN = queryMRN(database)
 			os.system('clear')
-			study = displayEligibility(database, MRN)
-			os.system('clear')
-			while (study != 'exit'):
-				database.patientDB[MRN].updateCharacteristics(study)
-				os.system('clear')
-				study = displayEligibility(database, MRN)
-				os.system('clear')
-		searchResult, MRN = queryMRN(database)
+				while (MRN != -1):
+					if (searchResult):
+						study = displayEligibility(database, MRN)
+						os.system('clear')
+						while (study != 'exit'):
+							database.patientDB[MRN].updateCharacteristics(study)
+							os.system('clear')
+							study = displayEligibility(database, MRN)
+							os.system('clear')
+					else:
+						newPatient = createPatient(MRN)
+						database.addPatient(MRN, newPatient)
+						os.system('clear')
+						study = displayEligibility(database, MRN)
+						os.system('clear')
+						while (study != 'exit'):
+							database.patientDB[MRN].updateCharacteristics(study)
+							os.system('clear')
+							study = displayEligibility(database, MRN)
+							os.system('clear')
+				searchResult, MRN = queryMRN(database)
+			mainMenu = mainMenu()
+		elif (mainMenu == 2):
+
 	print "Goodbye!"
 
 main()
